@@ -109,8 +109,8 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  overflow: auto;
-  padding: 40px;
+  overflow: hidden; /* Убирает скроллбары */
+  padding: 20px;
   background: #121212;
 }
 
