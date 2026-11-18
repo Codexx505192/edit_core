@@ -61,7 +61,7 @@ body{
     height: 40px;
     cursor: pointer;
     border-radius: 5px;
-    background-color: rgb(222, 209, 209);
+    background-color: rgb(49, 49, 49);
 
     color: white;
     font-size: 20px;
@@ -128,6 +128,12 @@ body{
     .container{
         width: 500px;
     }
+
+    .ar {
+    width: 262px;
+    height: 97px;
+    padding: 12px;
+}
 }
 
 @media (max-width: 576px) {
