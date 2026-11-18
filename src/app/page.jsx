@@ -8,6 +8,12 @@ export default function Home() {
     <section>
         <Header/>
       <div className="container">
+        <div className="banner">
+          <div className="b_itm">
+            <img src="./img/itm.png" alt="" />
+          </div>
+          
+        </div>
       </div>
     </section>
    </main>

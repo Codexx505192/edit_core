@@ -67,6 +67,26 @@
   display: none;
 }
 
+
+.b_itm{
+  width: 500px;
+  height: 500px;
+}
+
+.b_itm img{
+  width: 100%;
+  height: 100%;
+}
+
+.banner{
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: rgb(222, 209, 209);
+  padding: 90px 0;
+}
+
 @media (max-width: 1200px) {
   .container{
     width: 900px;
@@ -123,7 +143,7 @@
     height: 100%;
 
     background-color: #575757;;
-    z-index: 50;
+    z-index: 90;
     list-style: none;
   }
 
@@ -141,16 +161,33 @@
     text-transform: capitalize;
     font-family: "Shantell Sans", cursive;
   }
+
+
+  .b_itm {
+    width: 450px;
+    height: 450px;
+}
 }
 
 @media (max-width: 576px) {
   .container{
     width: 100%;
   }
+
+  .b_itm {
+    width: 369px;
+    height: 390px;
+}
 }
 
 @media (max-width: 375px) {
   .container{
     width: 100%;
   }
+
+
+  .b_itm {
+    width: 299px;
+    height: 309px;
+}
 }
