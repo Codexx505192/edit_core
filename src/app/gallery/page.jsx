@@ -5,8 +5,8 @@ export default function Page(){
     return(
         <>
         <section>
-            <div className={styles.container}>
                <Header/>
+            <div className={styles.container}>
             </div>
         </section>
         </>
