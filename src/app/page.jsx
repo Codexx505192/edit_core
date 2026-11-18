@@ -5,7 +5,7 @@ import Header from "./compnents/Header/Header";
 export default function Home() {
   return (
    <main>
-    <section>
+    <section className="banner_back">
         <Header/>
       <div className="container">
         <div className="banner">

@@ -86,6 +86,13 @@
   background-color: rgb(222, 209, 209);
   padding: 90px 0;
 }
+.banner_back{
+  background-color: rgb(222, 209, 209);
+}
+
+.lnk_1.active{
+  color: rgb(68, 68, 68);
+}
 
 @media (max-width: 1200px) {
   .container{
@@ -119,6 +126,7 @@
     height: 50px;
     border: none;
     background: none;
+    z-index: 100;
   }
 
   .m_itm{
