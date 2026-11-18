@@ -134,6 +134,13 @@ body{
     .container{
         width: 100%;
     }
+
+
+    .ar {
+    width: 260px;
+    height: 90px;
+    padding: 12px;
+}
 }
 
 @media (max-width: 375px) {
