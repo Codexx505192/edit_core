@@ -7,8 +7,7 @@
 .container{
   width: 1200px;
   margin: 0 auto;
-  background-color: aqua;
-  height: 100vh;
+  background-color: rgb(173, 173, 173);
 }
 
 .header{
