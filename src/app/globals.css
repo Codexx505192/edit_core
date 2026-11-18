@@ -94,10 +94,33 @@
   color: rgb(68, 68, 68);
 }
 
+.txt_1{
+  padding: 0 0 15px;
+  color: black;
+}
+
+.txt_2{
+  color: black;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+
+.safety_block{
+ background-color: orange;
+ padding: 20px 0; 
+}
+
 @media (max-width: 1200px) {
   .container{
     width: 900px;
+    background-color: aqua;
   }
+
+  .txt_1 {
+    font-size: 20px;
+    padding: 0 0 15px;
+}
 }
 
 
@@ -175,6 +198,16 @@
     width: 450px;
     height: 450px;
 }
+
+
+.txt_1 {
+    padding: 0 0 15px;
+    font-size: 14px;
+}
+
+.txt_2 {
+    font-size: 14px;
+}
 }
 
 @media (max-width: 576px) {
@@ -201,5 +234,15 @@
 
 .logo_header {
     font-size: 35px;
+}
+
+
+.txt_1 {
+    padding: 0 0 15px;
+    font-size: 12px;
+}
+
+.txt_2 {
+    font-size: 12px;
 }
 }
