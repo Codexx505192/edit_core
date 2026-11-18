@@ -73,9 +73,9 @@ const [openModal, setOpenModal]  = useState(false)
                 </ul>
 
                 <button className="menu" onClick={() => setOpenModal(!openModal)}>
-                    <div className="m_itm"></div>
-                    <div className="m_itm"></div>
-                    <div className="m_itm"></div>
+                    <div onClick={() => setOpenModal(!openModal)} className="m_itm"></div>
+                    <div onClick={() => setOpenModal(!openModal)} className="m_itm"></div>
+                    <div onClick={() => setOpenModal(!openModal)} className="m_itm"></div>
                 </button>
             </div>
         </div>
