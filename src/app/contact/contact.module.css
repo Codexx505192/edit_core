@@ -3,6 +3,112 @@
     margin-inline: auto;
     background-color: aqua;
 }
+body{
+    background-color: rgb(222, 209, 209);
+}
+
+.bannerContact{
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+     background-color: rgb(222, 209, 209);
+    padding: 20px 0;
+}
+
+
+.bannerBack{
+     background-color: rgb(222, 209, 209);
+}
+
+.frm{
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+
+.op{
+    border: none;
+    outline: none;
+    cursor: pointer;
+    width: 270px;
+}
+
+
+.inp_1{
+    width: 270px;
+    height: 20px;
+    border-radius: 4px;
+    outline: none;
+    border: none;
+    padding: 10px;
+}
+
+.ar{
+    width: 400px;
+    height: 200px;
+    border: none;
+    outline: none;
+    padding: 12px;
+}
+
+
+.btnContact{
+    border: none;
+    width: 100px;
+    height: 40px;
+    cursor: pointer;
+    border-radius: 5px;
+    background-color: rgb(9, 165, 163);
+
+    color: white;
+    font-size: 20px;
+}
+
+
+.bi{
+    padding: 20px;
+     background-color: rgb(222, 209, 209);
+    
+    display: flex;
+    flex-direction: column;
+}
+
+.icn{
+    width: 30px;
+    height: 30px;
+}
+
+.icn img{
+    width: 100%;
+    height: 100%;
+}
+
+.contact_list{
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.li_itm{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.tg{
+    text-decoration: none;
+    font-size: 30px;
+    color: white;
+    text-shadow: 2px 3px 4px black;
+}
+
+
+
+
+
 
 @media (max-width: 1200px) {
     .container{
@@ -33,4 +139,11 @@
     .container{
         width: 100%;
     }
+
+
+    .ar {
+    width: 300px;
+    height: 130px;
+    padding: 12px;
+}
 }
