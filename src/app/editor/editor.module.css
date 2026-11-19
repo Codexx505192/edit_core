@@ -10,15 +10,6 @@
 }
 
 
-.container {
-  display: flex;
-  height: 100vh;
-  font-family: sans-serif;
-  background: #1e1e1e;
-  color: #fff;
-  overflow: hidden;
-}
-
 .sidebarLeft {
   width: 220px;
   background: #252526;
@@ -109,7 +100,7 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  overflow: hidden; /* Убирает скроллбары */
+  overflow: auto;
   padding: 20px;
   background: #121212;
 }
@@ -119,6 +110,8 @@
   display: inline-flex;
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.7);
   flex-shrink: 0;
+  max-width: 100%;
+  max-height: 100%;
 }
 
 /* Шахматная сетка для отображения прозрачности */
@@ -134,7 +127,9 @@
   cursor: crosshair;
   touch-action: none;
   display: block;
-  image-rendering: pixelated;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
 }
 
 /* Наложение сетки для геймдева (не попадает в экспорт) */
@@ -186,8 +181,16 @@
   font-size: 13px;
 }
 
+.btn:hover {
+  background: #3e3e3e;
+}
+
 .btnActive {
   background: #007acc;
+}
+
+.btnActive:hover {
+  background: #0088e6;
 }
 
 .btnAction {
@@ -200,6 +203,10 @@
   font-size: 13px;
 }
 
+.btnAction:hover {
+  background: #3e3e3e;
+}
+
 .btnFilter {
   padding: 8px;
   background: #007acc;
@@ -210,6 +217,10 @@
   margin-top: 10px;
 }
 
+.btnFilter:hover {
+  background: #0088e6;
+}
+
 .btnTop {
   padding: 6px 10px;
   background: #333;
@@ -218,6 +229,10 @@
   border-radius: 4px;
   cursor: pointer;
   font-size: 13px;
+}
+
+.btnTop:hover:not(:disabled) {
+  background: #3e3e3e;
 }
 
 .btnTop:disabled {
@@ -235,6 +250,10 @@
   font-size: 13px;
 }
 
+.btnClear:hover {
+  background: #c0392b;
+}
+
 .btnSave {
   margin-left: auto;
   padding: 6px 14px;
@@ -245,6 +264,10 @@
   cursor: pointer;
   font-weight: bold;
   font-size: 13px;
+}
+
+.btnSave:hover {
+  background: #218838;
 }
 
 .inputField,
@@ -265,12 +288,17 @@
   font-size: 13px;
 }
 
+.fileLabel:hover {
+  background: #505050;
+}
+
 .fileInput {
   display: none;
 }
 
 .divider {
-  border-color: #333;
+  border: none;
+  border-top: 1px solid #333;
   width: 100%;
   margin: 3px 0;
 }
@@ -298,12 +326,18 @@
 
 .rangeInput {
   width: 100%;
+  cursor: pointer;
 }
 
 .sizeRow {
   display: flex;
   gap: 5px;
   align-items: center;
+}
+
+.sizeSeparator {
+  color: #aaa;
+  user-select: none;
 }
 
 .sizeInput {
@@ -315,6 +349,17 @@
   border-radius: 4px;
   font-size: 13px;
   text-align: center;
+}
+
+.presetRow {
+  display: flex;
+  gap: 4px;
+}
+
+.presetBtn {
+  flex: 1;
+  font-size: 11px;
+  padding: 5px 4px;
 }
 
 .btnResize {
@@ -329,10 +374,9 @@
   margin-top: 4px;
 }
 
-
-
-
-
+.btnResize:hover {
+  background: #0088e6;
+}
 
 @media (max-width: 1200px) {
   .container {

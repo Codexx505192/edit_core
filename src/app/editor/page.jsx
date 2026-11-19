@@ -4,6 +4,15 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import styles from './editor.module.css';
 
+const MIN_SIZE = 16;
+const MAX_SIZE = 2048;
+
+const clampSize = (value, fallback = 512) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  return Math.max(MIN_SIZE, Math.min(MAX_SIZE, Math.round(num)));
+};
+
 export default function FullPhotoShopEditor() {
   const canvasRef = useRef(null);
   const [ctx, setCtx] = useState(null);
@@ -16,7 +25,6 @@ export default function FullPhotoShopEditor() {
   const [showGrid, setShowGrid] = useState(false);
   const [gridSize, setGridSize] = useState(32);
   const [textInput, setTextInput] = useState('Ваш текст');
-  const [isDark, setIsDark] = useState(true);
 
   const [canvasWidth, setCanvasWidth] = useState(800);
   const [canvasHeight, setCanvasHeight] = useState(500);
@@ -25,34 +33,55 @@ export default function FullPhotoShopEditor() {
   const [startPos, setStartPos] = useState({ x: 0, y: 0 });
   const [snapshot, setSnapshot] = useState(null);
 
-  const [history, setHistory] = useState([]);
-  const [historyStep, setHistoryStep] = useState(-1);
+  const [historyState, setHistoryState] = useState({
+    items: [],
+    index: -1,
+  });
 
   const [brightness, setBrightness] = useState(100);
   const [contrast, setContrast] = useState(100);
   const [grayscale, setGrayscale] = useState(0);
   const [sepia, setSepia] = useState(0);
 
-  const saveToHistory = useCallback((context, canvas) => {
-    const dataUrl = canvas.toDataURL();
-    setHistory((prev) => {
-      const sliced = prev.slice(0, historyStep + 1);
-      return [...sliced, dataUrl];
+  const pushHistoryEntry = useCallback((dataUrl) => {
+    setHistoryState((prev) => {
+      const baseItems = prev.index >= 0 ? prev.items.slice(0, prev.index + 1) : [];
+      const nextItems = [...baseItems, dataUrl];
+      return {
+        items: nextItems,
+        index: nextItems.length - 1,
+      };
     });
-    setHistoryStep((prev) => prev + 1);
-  }, [historyStep]);
+  }, []);
+
+  const saveToHistory = useCallback(
+    (context, canvas) => {
+      if (!context || !canvas) return;
+      pushHistoryEntry(canvas.toDataURL('image/png'));
+    },
+    [pushHistoryEntry]
+  );
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+
     canvas.width = 800;
     canvas.height = 500;
+
     const context = canvas.getContext('2d', { willReadFrequently: true });
+    if (!context) return;
+
+    context.globalCompositeOperation = 'source-over';
     context.fillStyle = '#ffffff';
     context.fillRect(0, 0, canvas.width, canvas.height);
+
     setCtx(context);
-    setHistory([canvas.toDataURL()]);
-    setHistoryStep(0);
+    const initialUrl = canvas.toDataURL('image/png');
+    setHistoryState({
+      items: [initialUrl],
+      index: 0,
+    });
   }, []);
 
   useEffect(() => {
@@ -60,38 +89,52 @@ export default function FullPhotoShopEditor() {
     canvasRef.current.style.filter = `brightness(${brightness}%) contrast(${contrast}%) grayscale(${grayscale}%) sepia(${sepia}%)`;
   }, [brightness, contrast, grayscale, sepia]);
 
-  const restoreCanvas = useCallback((dataUrl) => {
-    if (!ctx || !canvasRef.current) return;
-    const img = new Image();
-    img.src = dataUrl;
-    img.onload = () => {
+  const restoreCanvas = useCallback(
+    (dataUrl) => {
       const canvas = canvasRef.current;
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0);
-    };
-  }, [ctx]);
+      if (!ctx || !canvas || !dataUrl) return;
+
+      const img = new Image();
+      img.onload = () => {
+        if (!canvasRef.current || !ctx) return;
+        const targetCanvas = canvasRef.current;
+        targetCanvas.width = img.width;
+        targetCanvas.height = img.height;
+        setCanvasWidth(img.width);
+        setCanvasHeight(img.height);
+
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
+        ctx.drawImage(img, 0, 0);
+      };
+      img.src = dataUrl;
+    },
+    [ctx]
+  );
 
   const handleUndo = useCallback(() => {
-    if (historyStep > 0) {
-      const step = historyStep - 1;
-      setHistoryStep(step);
-      restoreCanvas(history[step]);
-    }
-  }, [historyStep, history, restoreCanvas]);
+    setHistoryState((prev) => {
+      if (prev.index <= 0) return prev;
+      const nextIndex = prev.index - 1;
+      restoreCanvas(prev.items[nextIndex]);
+      return { ...prev, index: nextIndex };
+    });
+  }, [restoreCanvas]);
 
   const handleRedo = useCallback(() => {
-    if (historyStep < history.length - 1) {
-      const step = historyStep + 1;
-      setHistoryStep(step);
-      restoreCanvas(history[step]);
-    }
-  }, [historyStep, history, restoreCanvas]);
+    setHistoryState((prev) => {
+      if (prev.index >= prev.items.length - 1) return prev;
+      const nextIndex = prev.index + 1;
+      restoreCanvas(prev.items[nextIndex]);
+      return { ...prev, index: nextIndex };
+    });
+  }, [restoreCanvas]);
 
-  // Горячие клавиши Ctrl+Z и Ctrl+Y
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+      const tag = e.target?.tagName;
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         if (e.shiftKey) {
@@ -104,6 +147,7 @@ export default function FullPhotoShopEditor() {
         handleRedo();
       }
     };
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleUndo, handleRedo]);
@@ -112,14 +156,16 @@ export default function FullPhotoShopEditor() {
     const canvas = canvasRef.current;
     if (!canvas || !ctx) return;
 
-    const w = Number(canvasWidth);
-    const h = Number(canvasHeight);
-    if (w <= 0 || h <= 0) return;
+    const w = clampSize(canvasWidth, canvas.width);
+    const h = clampSize(canvasHeight, canvas.height);
+    setCanvasWidth(w);
+    setCanvasHeight(h);
 
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = canvas.width;
     tempCanvas.height = canvas.height;
     const tempCtx = tempCanvas.getContext('2d');
+    if (!tempCtx) return;
     tempCtx.drawImage(canvas, 0, 0);
 
     canvas.width = w;
@@ -149,22 +195,13 @@ export default function FullPhotoShopEditor() {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.restore();
       saveToHistory(ctx, canvas);
-    } else {
-      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = imgData.data;
-      for (let i = 0; i < data.length; i += 4) {
-        if (data[i] === 255 && data[i + 1] === 255 && data[i + 2] === 255) {
-          data[i + 3] = 0;
-        }
-      }
-      ctx.putImageData(imgData, 0, 0);
-      saveToHistory(ctx, canvas);
     }
   };
 
   const handleClearCanvas = () => {
     const canvas = canvasRef.current;
     if (!canvas || !ctx) return;
+
     ctx.globalCompositeOperation = 'source-over';
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (whiteBg) {
@@ -176,30 +213,52 @@ export default function FullPhotoShopEditor() {
 
   const handleImageUpload = (e) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !ctx || !canvasRef.current) return;
+
     const reader = new FileReader();
     reader.onload = (event) => {
+      const result = event.target?.result;
+      if (typeof result !== 'string') return;
+
       const img = new Image();
       img.onload = () => {
         const canvas = canvasRef.current;
-        canvas.width = img.width;
-        canvas.height = img.height;
-        setCanvasWidth(img.width);
-        setCanvasHeight(img.height);
+        if (!canvas || !ctx) return;
+
+        const w = clampSize(img.width, 512);
+        const h = clampSize(img.height, 512);
+
+        canvas.width = w;
+        canvas.height = h;
+        setCanvasWidth(w);
+        setCanvasHeight(h);
+
         ctx.globalCompositeOperation = 'source-over';
-        ctx.drawImage(img, 0, 0);
+        ctx.clearRect(0, 0, w, h);
+        if (whiteBg) {
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, w, h);
+        }
+        ctx.drawImage(img, 0, 0, w, h);
         saveToHistory(ctx, canvas);
       };
-      img.src = event.target?.result;
+      img.src = result;
     };
     reader.readAsDataURL(file);
+    e.target.value = '';
   };
 
   const getCoords = (e) => {
     const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+
     const rect = canvas.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    if (!rect.width || !rect.height) return { x: 0, y: 0 };
+
+    const touch = e.touches?.[0] || e.changedTouches?.[0];
+    const clientX = touch ? touch.clientX : e.clientX;
+    const clientY = touch ? touch.clientY : e.clientY;
+
     return {
       x: (clientX - rect.left) * (canvas.width / rect.width),
       y: (clientY - rect.top) * (canvas.height / rect.height),
@@ -210,7 +269,8 @@ export default function FullPhotoShopEditor() {
     '#' + [r, g, b].map((val) => val.toString(16).padStart(2, '0')).join('');
 
   const hexToRgba = (hex) => {
-    const clean = hex.replace('#', '');
+    const clean = (hex || '#000000').replace('#', '');
+    if (clean.length !== 6) return [0, 0, 0, 255];
     return [
       parseInt(clean.substring(0, 2), 16),
       parseInt(clean.substring(2, 4), 16),
@@ -221,6 +281,8 @@ export default function FullPhotoShopEditor() {
 
   const floodFill = (startX, startY, fillColorHex) => {
     const canvas = canvasRef.current;
+    if (!canvas || !ctx) return;
+
     const width = canvas.width;
     const height = canvas.height;
     const x0 = Math.floor(startX);
@@ -283,7 +345,11 @@ export default function FullPhotoShopEditor() {
   };
 
   const startAction = (e) => {
-    if (!ctx) return;
+    const canvas = canvasRef.current;
+    if (!ctx || !canvas) return;
+
+    if (e.cancelable) e.preventDefault();
+
     const pos = getCoords(e);
     setStartPos(pos);
 
@@ -293,28 +359,32 @@ export default function FullPhotoShopEditor() {
     }
 
     if (tool === 'eyedropper') {
-      const pixel = ctx.getImageData(Math.floor(pos.x), Math.floor(pos.y), 1, 1).data;
+      const px = Math.max(0, Math.min(canvas.width - 1, Math.floor(pos.x)));
+      const py = Math.max(0, Math.min(canvas.height - 1, Math.floor(pos.y)));
+      const pixel = ctx.getImageData(px, py, 1, 1).data;
       setColor(rgbToHex(pixel[0], pixel[1], pixel[2]));
       setTool('brush');
       return;
     }
 
     if (tool === 'text') {
+      if (!textInput.trim()) return;
       ctx.globalCompositeOperation = 'source-over';
-      ctx.font = `${size * 4}px sans-serif`;
+      ctx.font = `${Math.max(10, size * 4)}px sans-serif`;
       ctx.fillStyle = color;
       ctx.fillText(textInput, pos.x, pos.y);
-      saveToHistory(ctx, canvasRef.current);
+      saveToHistory(ctx, canvas);
       return;
     }
 
     setIsDrawing(true);
-    setSnapshot(ctx.getImageData(0, 0, canvasRef.current.width, canvasRef.current.height));
+    setSnapshot(ctx.getImageData(0, 0, canvas.width, canvas.height));
 
     ctx.beginPath();
     ctx.moveTo(pos.x, pos.y);
     ctx.lineWidth = size;
     ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
 
     if (tool === 'eraser') {
       if (whiteBg) {
@@ -332,14 +402,21 @@ export default function FullPhotoShopEditor() {
   };
 
   const moveAction = (e) => {
-    if (!isDrawing || !ctx) return;
+    const canvas = canvasRef.current;
+    if (!isDrawing || !ctx || !canvas) return;
+
+    if (e.cancelable) e.preventDefault();
+
     const pos = getCoords(e);
 
     if (tool === 'brush' || tool === 'eraser') {
       ctx.lineTo(pos.x, pos.y);
       ctx.stroke();
-    } else if (tool === 'rect') {
+    } else if (tool === 'rect' && snapshot) {
       ctx.putImageData(snapshot, 0, 0);
+      ctx.lineWidth = size;
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
       const w = pos.x - startPos.x;
       const h = pos.y - startPos.y;
       if (fillShape) {
@@ -347,9 +424,12 @@ export default function FullPhotoShopEditor() {
       } else {
         ctx.strokeRect(startPos.x, startPos.y, w, h);
       }
-    } else if (tool === 'circle') {
+    } else if (tool === 'circle' && snapshot) {
       ctx.putImageData(snapshot, 0, 0);
-      const radius = Math.sqrt(Math.pow(pos.x - startPos.x, 2) + Math.pow(pos.y - startPos.y, 2));
+      ctx.lineWidth = size;
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      const radius = Math.hypot(pos.x - startPos.x, pos.y - startPos.y);
       ctx.beginPath();
       ctx.arc(startPos.x, startPos.y, radius, 0, 2 * Math.PI);
       if (fillShape) {
@@ -361,21 +441,27 @@ export default function FullPhotoShopEditor() {
   };
 
   const endAction = () => {
-    if (!isDrawing) return;
+    const canvas = canvasRef.current;
+    if (!isDrawing || !ctx || !canvas) return;
+
     setIsDrawing(false);
+    setSnapshot(null);
     ctx.globalCompositeOperation = 'source-over';
-    saveToHistory(ctx, canvasRef.current);
+    saveToHistory(ctx, canvas);
   };
 
   const handleRotate = () => {
     const canvas = canvasRef.current;
+    if (!canvas || !ctx) return;
+
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = canvas.height;
     tempCanvas.height = canvas.width;
     const tempCtx = tempCanvas.getContext('2d');
+    if (!tempCtx) return;
 
     tempCtx.translate(tempCanvas.width / 2, tempCanvas.height / 2);
-    tempCtx.rotate((90 * Math.PI) / 180);
+    tempCtx.rotate(Math.PI / 2);
     tempCtx.drawImage(canvas, -canvas.width / 2, -canvas.height / 2);
 
     canvas.width = tempCanvas.width;
@@ -384,16 +470,20 @@ export default function FullPhotoShopEditor() {
     setCanvasHeight(canvas.height);
 
     ctx.globalCompositeOperation = 'source-over';
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(tempCanvas, 0, 0);
     saveToHistory(ctx, canvas);
   };
 
   const handleFlip = () => {
     const canvas = canvasRef.current;
+    if (!canvas || !ctx) return;
+
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = canvas.width;
     tempCanvas.height = canvas.height;
     const tempCtx = tempCanvas.getContext('2d');
+    if (!tempCtx) return;
 
     tempCtx.translate(canvas.width, 0);
     tempCtx.scale(-1, 1);
@@ -407,10 +497,13 @@ export default function FullPhotoShopEditor() {
 
   const applyFiltersToCanvas = () => {
     const canvas = canvasRef.current;
+    if (!canvas || !ctx) return;
+
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = canvas.width;
     tempCanvas.height = canvas.height;
     const tempCtx = tempCanvas.getContext('2d');
+    if (!tempCtx) return;
 
     tempCtx.filter = `brightness(${brightness}%) contrast(${contrast}%) grayscale(${grayscale}%) sepia(${sepia}%)`;
     tempCtx.drawImage(canvas, 0, 0);
@@ -428,10 +521,13 @@ export default function FullPhotoShopEditor() {
 
   const handleSave = () => {
     const canvas = canvasRef.current;
+    if (!canvas) return;
+
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = canvas.width;
     tempCanvas.height = canvas.height;
     const tempCtx = tempCanvas.getContext('2d');
+    if (!tempCtx) return;
 
     tempCtx.filter = `brightness(${brightness}%) contrast(${contrast}%) grayscale(${grayscale}%) sepia(${sepia}%)`;
     tempCtx.drawImage(canvas, 0, 0);
@@ -451,8 +547,6 @@ export default function FullPhotoShopEditor() {
 
   return (
     <div className={styles.container}>
-      
-      {/* Левая панель */}
       <div className={styles.sidebarLeft}>
         <Link href="/" className={styles.linkHome}>← На главную</Link>
         <h3 className={styles.title}>Инструменты</h3>
@@ -468,6 +562,7 @@ export default function FullPhotoShopEditor() {
         ].map((item) => (
           <button
             key={item.id}
+            type="button"
             onClick={() => setTool(item.id)}
             className={`${styles.btn} ${tool === item.id ? styles.btnActive : ''}`}
           >
@@ -506,28 +601,46 @@ export default function FullPhotoShopEditor() {
             onChange={(e) => setCanvasWidth(e.target.value)}
             className={styles.sizeInput}
             placeholder="Ширина"
-            min="16"
-            max="2048"
+            min={MIN_SIZE}
+            max={MAX_SIZE}
           />
-          <span style={{ color: '#aaa' }}>×</span>
+          <span className={styles.sizeSeparator}>×</span>
           <input
             type="number"
             value={canvasHeight}
             onChange={(e) => setCanvasHeight(e.target.value)}
             className={styles.sizeInput}
             placeholder="Высота"
-            min="16"
-            max="2048"
+            min={MIN_SIZE}
+            max={MAX_SIZE}
           />
         </div>
 
-        <div style={{ display: 'flex', gap: '4px' }}>
-          <button onClick={() => { setCanvasWidth(32); setCanvasHeight(32); }} className={styles.btnAction} style={{ flex: 1, fontSize: '11px' }}>32×32</button>
-          <button onClick={() => { setCanvasWidth(64); setCanvasHeight(64); }} className={styles.btnAction} style={{ flex: 1, fontSize: '11px' }}>64×64</button>
-          <button onClick={() => { setCanvasWidth(512); setCanvasHeight(512); }} className={styles.btnAction} style={{ flex: 1, fontSize: '11px' }}>512×512</button>
+        <div className={styles.presetRow}>
+          <button
+            type="button"
+            onClick={() => { setCanvasWidth(32); setCanvasHeight(32); }}
+            className={`${styles.btnAction} ${styles.presetBtn}`}
+          >
+            32×32
+          </button>
+          <button
+            type="button"
+            onClick={() => { setCanvasWidth(64); setCanvasHeight(64); }}
+            className={`${styles.btnAction} ${styles.presetBtn}`}
+          >
+            64×64
+          </button>
+          <button
+            type="button"
+            onClick={() => { setCanvasWidth(512); setCanvasHeight(512); }}
+            className={`${styles.btnAction} ${styles.presetBtn}`}
+          >
+            512×512
+          </button>
         </div>
 
-        <button onClick={handleResizeCanvas} className={styles.btnResize}>
+        <button type="button" onClick={handleResizeCanvas} className={styles.btnResize}>
           📐 Изменить размер
         </button>
 
@@ -589,11 +702,10 @@ export default function FullPhotoShopEditor() {
 
         <hr className={styles.divider} />
         <h3 className={styles.subTitle}>Трансформация</h3>
-        <button onClick={handleRotate} className={styles.btnAction}>🔄 Повернуть 90°</button>
-        <button onClick={handleFlip} className={styles.btnAction}>↔️ Отразить</button>
+        <button type="button" onClick={handleRotate} className={styles.btnAction}>🔄 Повернуть 90°</button>
+        <button type="button" onClick={handleFlip} className={styles.btnAction}>↔️ Отразить</button>
       </div>
 
-      {/* Центр */}
       <div className={styles.mainContent}>
         <div className={styles.topBar}>
           <label className={styles.fileLabel}>
@@ -601,11 +713,25 @@ export default function FullPhotoShopEditor() {
             <input type="file" accept="image/*" onChange={handleImageUpload} className={styles.fileInput} />
           </label>
 
-          <button onClick={handleUndo} disabled={historyStep <= 0} className={styles.btnTop}>↩️ Назад</button>
-          <button onClick={handleRedo} disabled={historyStep >= history.length - 1} className={styles.btnTop}>↪️ Вперёд</button>
-          <button onClick={handleClearCanvas} className={styles.btnClear}>🗑️ Очистить</button>
+          <button
+            type="button"
+            onClick={handleUndo}
+            disabled={historyState.index <= 0}
+            className={styles.btnTop}
+          >
+            ↩️ Назад
+          </button>
+          <button
+            type="button"
+            onClick={handleRedo}
+            disabled={historyState.index >= historyState.items.length - 1}
+            className={styles.btnTop}
+          >
+            ↪️ Вперёд
+          </button>
+          <button type="button" onClick={handleClearCanvas} className={styles.btnClear}>🗑️ Очистить</button>
 
-          <button onClick={handleSave} className={styles.btnSave}>
+          <button type="button" onClick={handleSave} className={styles.btnSave}>
             💾 Сохранить PNG
           </button>
         </div>
@@ -633,31 +759,58 @@ export default function FullPhotoShopEditor() {
         </div>
       </div>
 
-      {/* Правая панель */}
       <div className={styles.sidebarRight}>
         <h3 className={styles.subTitle}>Цветокоррекция</h3>
 
         <label className={styles.labelControl}>
           <span>Яркость: {brightness}%</span>
-          <input type="range" min="0" max="200" value={brightness} onChange={(e) => setBrightness(Number(e.target.value))} className={styles.rangeInput} />
+          <input
+            type="range"
+            min="0"
+            max="200"
+            value={brightness}
+            onChange={(e) => setBrightness(Number(e.target.value))}
+            className={styles.rangeInput}
+          />
         </label>
 
         <label className={styles.labelControl}>
           <span>Контраст: {contrast}%</span>
-          <input type="range" min="0" max="200" value={contrast} onChange={(e) => setContrast(Number(e.target.value))} className={styles.rangeInput} />
+          <input
+            type="range"
+            min="0"
+            max="200"
+            value={contrast}
+            onChange={(e) => setContrast(Number(e.target.value))}
+            className={styles.rangeInput}
+          />
         </label>
 
         <label className={styles.labelControl}>
           <span>Чёрно-белое: {grayscale}%</span>
-          <input type="range" min="0" max="100" value={grayscale} onChange={(e) => setGrayscale(Number(e.target.value))} className={styles.rangeInput} />
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={grayscale}
+            onChange={(e) => setGrayscale(Number(e.target.value))}
+            className={styles.rangeInput}
+          />
         </label>
 
         <label className={styles.labelControl}>
           <span>Сепия: {sepia}%</span>
-          <input type="range" min="0" max="100" value={sepia} onChange={(e) => setSepia(Number(e.target.value))} className={styles.rangeInput} />
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={sepia}
+            onChange={(e) => setSepia(Number(e.target.value))}
+            className={styles.rangeInput}
+          />
         </label>
 
-        <button onClick={applyFiltersToCanvas} className={styles.btnFilter}>
+        <button type="button" onClick={applyFiltersToCanvas} className={styles.btnFilter}>
           ✓ Применить фильтры
         </button>
       </div>
