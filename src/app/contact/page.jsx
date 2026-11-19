@@ -52,7 +52,7 @@ export default function Page(){
                       </div>
 
                       <a
-                     href="https://t.me/Root_404"
+                     href="https://t.me/Root_oot_404"
                      target="_blank"
                      rel="noopener noreferrer"
                      className={styles.tg}
