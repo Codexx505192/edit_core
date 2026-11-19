@@ -13,12 +13,12 @@ export default function Page(){
               <form className={styles.frm} action="#">
                 <label>
                     <p className={styles.cn}>Name:</p>
-                    <input type="text" placeholder='Name' className={styles.inp_1}/>
+                    <input name='name' type="text" placeholder='Name' className={styles.inp_1}/>
                 </label>
 
                 <label>
                     <p className={styles.cn}>Email:</p>
-                    <input type="email" placeholder='Name' className={styles.inp_1} required/>
+                    <input name='email' type="email" placeholder='Name' className={styles.inp_1} required/>
                 </label>
 
                 <label>
@@ -51,9 +51,14 @@ export default function Page(){
                         <img src="./icons/icn_1.png" alt="" />
                       </div>
 
-                      <Link href="#" className={styles.tg}>
-                       Telegram
-                      </Link>
+                      <a
+                     href="https://t.me/Root_404"
+                     target="_blank"
+                     rel="noopener noreferrer"
+                     className={styles.tg}
+                      >
+                        Telegram
+                      </a>
                      </li>
                      
                      <li className={styles.li_itm}>
