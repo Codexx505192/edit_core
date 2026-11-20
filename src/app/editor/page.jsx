@@ -6,6 +6,7 @@ import styles from './editor.module.css';
 
 const MIN_SIZE = 16;
 const MAX_SIZE = 2048;
+const ZOOM_LEVELS = [25, 50, 75, 100, 150, 200, 300, 400, 600, 800, 1200, 1600];
 
 const clampSize = (value, fallback = 512) => {
   const num = Number(value);
@@ -13,9 +14,27 @@ const clampSize = (value, fallback = 512) => {
   return Math.max(MIN_SIZE, Math.min(MAX_SIZE, Math.round(num)));
 };
 
+const createLayerCanvas = (width, height, fillWhite = false) => {
+  const c = document.createElement('canvas');
+  c.width = width;
+  c.height = height;
+  if (fillWhite) {
+    const ctx = c.getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, height);
+    }
+  }
+  return c;
+};
+
 export default function FullPhotoShopEditor() {
-  const canvasRef = useRef(null);
-  const [ctx, setCtx] = useState(null);
+  const displayCanvasRef = useRef(null);
+  const layerCanvasesRef = useRef({});
+  const layerCounterRef = useRef(1);
+
+  const [layers, setLayers] = useState([]);
+  const [activeLayerId, setActiveLayerId] = useState(null);
 
   const [tool, setTool] = useState('brush');
   const [color, setColor] = useState('#ff0000');
@@ -25,6 +44,7 @@ export default function FullPhotoShopEditor() {
   const [showGrid, setShowGrid] = useState(false);
   const [gridSize, setGridSize] = useState(32);
   const [textInput, setTextInput] = useState('Ваш текст');
+  const [zoom, setZoom] = useState(75);
 
   const [canvasWidth, setCanvasWidth] = useState(800);
   const [canvasHeight, setCanvasHeight] = useState(500);
@@ -43,92 +63,162 @@ export default function FullPhotoShopEditor() {
   const [grayscale, setGrayscale] = useState(0);
   const [sepia, setSepia] = useState(0);
 
-  const pushHistoryEntry = useCallback((dataUrl) => {
-    setHistoryState((prev) => {
-      const baseItems = prev.index >= 0 ? prev.items.slice(0, prev.index + 1) : [];
-      const nextItems = [...baseItems, dataUrl];
-      return {
-        items: nextItems,
-        index: nextItems.length - 1,
-      };
-    });
-  }, []);
+  // Отрисовка всех видимых слоёв на главный canvas
+  const renderComposite = useCallback(
+    (customLayers = layers, customW = canvasWidth, customH = canvasHeight) => {
+      const display = displayCanvasRef.current;
+      if (!display) return;
 
-  const saveToHistory = useCallback(
-    (context, canvas) => {
-      if (!context || !canvas) return;
-      pushHistoryEntry(canvas.toDataURL('image/png'));
+      if (display.width !== customW) display.width = customW;
+      if (display.height !== customH) display.height = customH;
+
+      const dCtx = display.getContext('2d');
+      if (!dCtx) return;
+
+      dCtx.globalCompositeOperation = 'source-over';
+      dCtx.clearRect(0, 0, customW, customH);
+
+      customLayers.forEach((layer) => {
+        if (!layer.visible) return;
+        const lCanvas = layerCanvasesRef.current[layer.id];
+        if (lCanvas) {
+          dCtx.drawImage(lCanvas, 0, 0);
+        }
+      });
     },
-    [pushHistoryEntry]
+    [layers, canvasWidth, canvasHeight]
   );
 
+  // Сохранение снимка всех слоёв в историю
+  const saveSnapshotToHistory = useCallback(
+    (customLayers = layers, customActiveId = activeLayerId, w = canvasWidth, h = canvasHeight) => {
+      const serializedLayers = customLayers.map((l) => {
+        const c = layerCanvasesRef.current[l.id];
+        return {
+          id: l.id,
+          name: l.name,
+          visible: l.visible,
+          dataUrl: c ? c.toDataURL('image/png') : '',
+        };
+      });
+
+      const entry = {
+        width: w,
+        height: h,
+        activeLayerId: customActiveId,
+        layers: serializedLayers,
+      };
+
+      setHistoryState((prev) => {
+        const base = prev.index >= 0 ? prev.items.slice(0, prev.index + 1) : [];
+        const nextItems = [...base, entry];
+        return {
+          items: nextItems,
+          index: nextItems.length - 1,
+        };
+      });
+    },
+    [layers, activeLayerId, canvasWidth, canvasHeight]
+  );
+
+  // Инициализация первого слоя при запуске
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const initialId = 'layer-1';
+    layerCanvasesRef.current[initialId] = createLayerCanvas(800, 500, true);
+    const initialLayers = [{ id: initialId, name: 'Слой 1 (Фон)', visible: true }];
 
-    canvas.width = 800;
-    canvas.height = 500;
+    setLayers(initialLayers);
+    setActiveLayerId(initialId);
 
-    const context = canvas.getContext('2d', { willReadFrequently: true });
-    if (!context) return;
+    const display = displayCanvasRef.current;
+    if (display) {
+      display.width = 800;
+      display.height = 500;
+      const dCtx = display.getContext('2d');
+      if (dCtx) {
+        dCtx.drawImage(layerCanvasesRef.current[initialId], 0, 0);
+      }
+    }
 
-    context.globalCompositeOperation = 'source-over';
-    context.fillStyle = '#ffffff';
-    context.fillRect(0, 0, canvas.width, canvas.height);
-
-    setCtx(context);
-    const initialUrl = canvas.toDataURL('image/png');
     setHistoryState({
-      items: [initialUrl],
+      items: [
+        {
+          width: 800,
+          height: 500,
+          activeLayerId: initialId,
+          layers: [
+            {
+              id: initialId,
+              name: 'Слой 1 (Фон)',
+              visible: true,
+              dataUrl: layerCanvasesRef.current[initialId].toDataURL('image/png'),
+            },
+          ],
+        },
+      ],
       index: 0,
     });
   }, []);
 
   useEffect(() => {
-    if (!canvasRef.current) return;
-    canvasRef.current.style.filter = `brightness(${brightness}%) contrast(${contrast}%) grayscale(${grayscale}%) sepia(${sepia}%)`;
+    renderComposite(layers, canvasWidth, canvasHeight);
+  }, [layers, canvasWidth, canvasHeight, renderComposite]);
+
+  useEffect(() => {
+    if (!displayCanvasRef.current) return;
+    displayCanvasRef.current.style.filter = `brightness(${brightness}%) contrast(${contrast}%) grayscale(${grayscale}%) sepia(${sepia}%)`;
   }, [brightness, contrast, grayscale, sepia]);
 
-  const restoreCanvas = useCallback(
-    (dataUrl) => {
-      const canvas = canvasRef.current;
-      if (!ctx || !canvas || !dataUrl) return;
+  const restoreHistoryEntry = useCallback(async (entry) => {
+    if (!entry) return;
 
-      const img = new Image();
-      img.onload = () => {
-        if (!canvasRef.current || !ctx) return;
-        const targetCanvas = canvasRef.current;
-        targetCanvas.width = img.width;
-        targetCanvas.height = img.height;
-        setCanvasWidth(img.width);
-        setCanvasHeight(img.height);
+    const newCanvases = {};
+    await Promise.all(
+      entry.layers.map(
+        (l) =>
+          new Promise((resolve) => {
+            const c = createLayerCanvas(entry.width, entry.height, false);
+            const img = new Image();
+            img.onload = () => {
+              const ctx = c.getContext('2d');
+              if (ctx) ctx.drawImage(img, 0, 0);
+              newCanvases[l.id] = c;
+              resolve();
+            };
+            img.onerror = () => {
+              newCanvases[l.id] = c;
+              resolve();
+            };
+            img.src = l.dataUrl;
+          })
+      )
+    );
 
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.clearRect(0, 0, targetCanvas.width, targetCanvas.height);
-        ctx.drawImage(img, 0, 0);
-      };
-      img.src = dataUrl;
-    },
-    [ctx]
-  );
+    layerCanvasesRef.current = newCanvases;
+    const restoredMeta = entry.layers.map(({ id, name, visible }) => ({ id, name, visible }));
+    setCanvasWidth(entry.width);
+    setCanvasHeight(entry.height);
+    setLayers(restoredMeta);
+    setActiveLayerId(entry.activeLayerId);
+  }, []);
 
   const handleUndo = useCallback(() => {
     setHistoryState((prev) => {
       if (prev.index <= 0) return prev;
       const nextIndex = prev.index - 1;
-      restoreCanvas(prev.items[nextIndex]);
+      restoreHistoryEntry(prev.items[nextIndex]);
       return { ...prev, index: nextIndex };
     });
-  }, [restoreCanvas]);
+  }, [restoreHistoryEntry]);
 
   const handleRedo = useCallback(() => {
     setHistoryState((prev) => {
       if (prev.index >= prev.items.length - 1) return prev;
       const nextIndex = prev.index + 1;
-      restoreCanvas(prev.items[nextIndex]);
+      restoreHistoryEntry(prev.items[nextIndex]);
       return { ...prev, index: nextIndex };
     });
-  }, [restoreCanvas]);
+  }, [restoreHistoryEntry]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -137,11 +227,8 @@ export default function FullPhotoShopEditor() {
 
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
-        if (e.shiftKey) {
-          handleRedo();
-        } else {
-          handleUndo();
-        }
+        if (e.shiftKey) handleRedo();
+        else handleUndo();
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
         e.preventDefault();
         handleRedo();
@@ -152,68 +239,127 @@ export default function FullPhotoShopEditor() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleUndo, handleRedo]);
 
-  const handleResizeCanvas = () => {
-    const canvas = canvasRef.current;
-    if (!canvas || !ctx) return;
+  const getActiveLayerContext = () => {
+    if (!activeLayerId) return null;
+    const lCanvas = layerCanvasesRef.current[activeLayerId];
+    if (!lCanvas) return null;
+    const ctx = lCanvas.getContext('2d', { willReadFrequently: true });
+    return ctx ? { canvas: lCanvas, ctx } : null;
+  };
 
-    const w = clampSize(canvasWidth, canvas.width);
-    const h = clampSize(canvasHeight, canvas.height);
+  // Управление слоями
+  const handleAddLayer = () => {
+    layerCounterRef.current += 1;
+    const newId = `layer-${layerCounterRef.current}-${Date.now()}`;
+    layerCanvasesRef.current[newId] = createLayerCanvas(canvasWidth, canvasHeight, false);
+
+    const nextLayers = [
+      ...layers,
+      { id: newId, name: `Слой ${layerCounterRef.current}`, visible: true },
+    ];
+    setLayers(nextLayers);
+    setActiveLayerId(newId);
+    saveSnapshotToHistory(nextLayers, newId);
+  };
+
+  const handleDeleteLayer = (id) => {
+    if (layers.length <= 1) return;
+    const nextLayers = layers.filter((l) => l.id !== id);
+    delete layerCanvasesRef.current[id];
+
+    const nextActive = activeLayerId === id ? nextLayers[nextLayers.length - 1].id : activeLayerId;
+    setLayers(nextLayers);
+    setActiveLayerId(nextActive);
+    saveSnapshotToHistory(nextLayers, nextActive);
+  };
+
+  const handleToggleLayerVisibility = (id) => {
+    const nextLayers = layers.map((l) => (l.id === id ? { ...l, visible: !l.visible } : l));
+    setLayers(nextLayers);
+    saveSnapshotToHistory(nextLayers, activeLayerId);
+  };
+
+  const handleMoveLayer = (index, direction) => {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= layers.length) return;
+    const nextLayers = [...layers];
+    const [moved] = nextLayers.splice(index, 1);
+    nextLayers.splice(targetIndex, 0, moved);
+    setLayers(nextLayers);
+    saveSnapshotToHistory(nextLayers, activeLayerId);
+  };
+
+  // Зум
+  const handleZoomOut = () => {
+    const prev = [...ZOOM_LEVELS].reverse().find((z) => z < zoom);
+    if (prev) setZoom(prev);
+  };
+
+  const handleZoomIn = () => {
+    const next = ZOOM_LEVELS.find((z) => z > zoom);
+    if (next) setZoom(next);
+  };
+
+  // Размер холста
+  const handleResizeCanvas = () => {
+    const w = clampSize(canvasWidth, 512);
+    const h = clampSize(canvasHeight, 512);
     setCanvasWidth(w);
     setCanvasHeight(h);
 
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = canvas.width;
-    tempCanvas.height = canvas.height;
-    const tempCtx = tempCanvas.getContext('2d');
-    if (!tempCtx) return;
-    tempCtx.drawImage(canvas, 0, 0);
+    layers.forEach((l, idx) => {
+      const oldC = layerCanvasesRef.current[l.id];
+      const newC = createLayerCanvas(w, h, idx === 0 && whiteBg);
+      const nCtx = newC.getContext('2d');
+      if (nCtx && oldC) {
+        nCtx.drawImage(oldC, 0, 0);
+      }
+      layerCanvasesRef.current[l.id] = newC;
+    });
 
-    canvas.width = w;
-    canvas.height = h;
-
-    ctx.globalCompositeOperation = 'source-over';
-    if (whiteBg) {
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, w, h);
-    } else {
-      ctx.clearRect(0, 0, w, h);
-    }
-
-    ctx.drawImage(tempCanvas, 0, 0);
-    saveToHistory(ctx, canvas);
+    renderComposite(layers, w, h);
+    saveSnapshotToHistory(layers, activeLayerId, w, h);
   };
 
   const handleToggleWhiteBg = (checked) => {
     setWhiteBg(checked);
-    const canvas = canvasRef.current;
-    if (!canvas || !ctx) return;
+    if (!layers.length) return;
+
+    const baseLayerId = layers[0].id;
+    const baseCanvas = layerCanvasesRef.current[baseLayerId];
+    const bCtx = baseCanvas?.getContext('2d');
+    if (!bCtx || !baseCanvas) return;
 
     if (checked) {
-      ctx.save();
-      ctx.globalCompositeOperation = 'destination-over';
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.restore();
-      saveToHistory(ctx, canvas);
+      bCtx.save();
+      bCtx.globalCompositeOperation = 'destination-over';
+      bCtx.fillStyle = '#ffffff';
+      bCtx.fillRect(0, 0, baseCanvas.width, baseCanvas.height);
+      bCtx.restore();
+      renderComposite();
+      saveSnapshotToHistory();
     }
   };
 
-  const handleClearCanvas = () => {
-    const canvas = canvasRef.current;
-    if (!canvas || !ctx) return;
+  const handleClearLayer = () => {
+    const active = getActiveLayerContext();
+    if (!active) return;
 
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (whiteBg) {
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    active.ctx.globalCompositeOperation = 'source-over';
+    active.ctx.clearRect(0, 0, active.canvas.width, active.canvas.height);
+
+    if (layers[0]?.id === activeLayerId && whiteBg) {
+      active.ctx.fillStyle = '#ffffff';
+      active.ctx.fillRect(0, 0, active.canvas.width, active.canvas.height);
     }
-    saveToHistory(ctx, canvas);
+
+    renderComposite();
+    saveSnapshotToHistory();
   };
 
   const handleImageUpload = (e) => {
     const file = e.target.files?.[0];
-    if (!file || !ctx || !canvasRef.current) return;
+    if (!file) return;
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -222,25 +368,31 @@ export default function FullPhotoShopEditor() {
 
       const img = new Image();
       img.onload = () => {
-        const canvas = canvasRef.current;
-        if (!canvas || !ctx) return;
-
         const w = clampSize(img.width, 512);
         const h = clampSize(img.height, 512);
 
-        canvas.width = w;
-        canvas.height = h;
+        layers.forEach((l, idx) => {
+          const oldC = layerCanvasesRef.current[l.id];
+          const newC = createLayerCanvas(w, h, idx === 0 && whiteBg);
+          const nCtx = newC.getContext('2d');
+          if (nCtx && oldC && l.id !== activeLayerId) {
+            nCtx.drawImage(oldC, 0, 0);
+          }
+          layerCanvasesRef.current[l.id] = newC;
+        });
+
+        const targetId = activeLayerId || layers[0]?.id;
+        const targetCanvas = layerCanvasesRef.current[targetId];
+        const tCtx = targetCanvas?.getContext('2d');
+        if (tCtx) {
+          tCtx.globalCompositeOperation = 'source-over';
+          tCtx.drawImage(img, 0, 0, w, h);
+        }
+
         setCanvasWidth(w);
         setCanvasHeight(h);
-
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.clearRect(0, 0, w, h);
-        if (whiteBg) {
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, w, h);
-        }
-        ctx.drawImage(img, 0, 0, w, h);
-        saveToHistory(ctx, canvas);
+        renderComposite(layers, w, h);
+        saveSnapshotToHistory(layers, targetId, w, h);
       };
       img.src = result;
     };
@@ -249,10 +401,10 @@ export default function FullPhotoShopEditor() {
   };
 
   const getCoords = (e) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
+    const display = displayCanvasRef.current;
+    if (!display) return { x: 0, y: 0 };
 
-    const rect = canvas.getBoundingClientRect();
+    const rect = display.getBoundingClientRect();
     if (!rect.width || !rect.height) return { x: 0, y: 0 };
 
     const touch = e.touches?.[0] || e.changedTouches?.[0];
@@ -260,8 +412,8 @@ export default function FullPhotoShopEditor() {
     const clientY = touch ? touch.clientY : e.clientY;
 
     return {
-      x: (clientX - rect.left) * (canvas.width / rect.width),
-      y: (clientY - rect.top) * (canvas.height / rect.height),
+      x: (clientX - rect.left) * (canvasWidth / rect.width),
+      y: (clientY - rect.top) * (canvasHeight / rect.height),
     };
   };
 
@@ -280,9 +432,10 @@ export default function FullPhotoShopEditor() {
   };
 
   const floodFill = (startX, startY, fillColorHex) => {
-    const canvas = canvasRef.current;
-    if (!canvas || !ctx) return;
+    const active = getActiveLayerContext();
+    if (!active) return;
 
+    const { canvas, ctx } = active;
     const width = canvas.width;
     const height = canvas.height;
     const x0 = Math.floor(startX);
@@ -341,12 +494,14 @@ export default function FullPhotoShopEditor() {
     }
 
     ctx.putImageData(imgData, 0, 0);
-    saveToHistory(ctx, canvas);
+    renderComposite();
+    saveSnapshotToHistory();
   };
 
   const startAction = (e) => {
-    const canvas = canvasRef.current;
-    if (!ctx || !canvas) return;
+    const active = getActiveLayerContext();
+    const display = displayCanvasRef.current;
+    if (!active || !display) return;
 
     if (e.cancelable) e.preventDefault();
 
@@ -359,9 +514,11 @@ export default function FullPhotoShopEditor() {
     }
 
     if (tool === 'eyedropper') {
-      const px = Math.max(0, Math.min(canvas.width - 1, Math.floor(pos.x)));
-      const py = Math.max(0, Math.min(canvas.height - 1, Math.floor(pos.y)));
-      const pixel = ctx.getImageData(px, py, 1, 1).data;
+      const dCtx = display.getContext('2d', { willReadFrequently: true });
+      if (!dCtx) return;
+      const px = Math.max(0, Math.min(canvasWidth - 1, Math.floor(pos.x)));
+      const py = Math.max(0, Math.min(canvasHeight - 1, Math.floor(pos.y)));
+      const pixel = dCtx.getImageData(px, py, 1, 1).data;
       setColor(rgbToHex(pixel[0], pixel[1], pixel[2]));
       setTool('brush');
       return;
@@ -369,49 +526,55 @@ export default function FullPhotoShopEditor() {
 
     if (tool === 'text') {
       if (!textInput.trim()) return;
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.font = `${Math.max(10, size * 4)}px sans-serif`;
-      ctx.fillStyle = color;
-      ctx.fillText(textInput, pos.x, pos.y);
-      saveToHistory(ctx, canvas);
+      active.ctx.globalCompositeOperation = 'source-over';
+      active.ctx.font = `${Math.max(10, size * 4)}px sans-serif`;
+      active.ctx.fillStyle = color;
+      active.ctx.fillText(textInput, pos.x, pos.y);
+      renderComposite();
+      saveSnapshotToHistory();
       return;
     }
 
     setIsDrawing(true);
-    setSnapshot(ctx.getImageData(0, 0, canvas.width, canvas.height));
+    setSnapshot(active.ctx.getImageData(0, 0, active.canvas.width, active.canvas.height));
 
-    ctx.beginPath();
-    ctx.moveTo(pos.x, pos.y);
-    ctx.lineWidth = size;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
+    active.ctx.beginPath();
+    active.ctx.moveTo(pos.x, pos.y);
+    active.ctx.lineWidth = size;
+    active.ctx.lineCap = 'round';
+    active.ctx.lineJoin = 'round';
+
+    const isBottomWhiteBgLayer = layers[0]?.id === activeLayerId && whiteBg;
 
     if (tool === 'eraser') {
-      if (whiteBg) {
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.strokeStyle = '#ffffff';
+      if (isBottomWhiteBgLayer) {
+        active.ctx.globalCompositeOperation = 'source-over';
+        active.ctx.strokeStyle = '#ffffff';
       } else {
-        ctx.globalCompositeOperation = 'destination-out';
-        ctx.strokeStyle = 'rgba(0,0,0,1)';
+        active.ctx.globalCompositeOperation = 'destination-out';
+        active.ctx.strokeStyle = 'rgba(0,0,0,1)';
       }
     } else {
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.strokeStyle = color;
-      ctx.fillStyle = color;
+      active.ctx.globalCompositeOperation = 'source-over';
+      active.ctx.strokeStyle = color;
+      active.ctx.fillStyle = color;
     }
   };
 
   const moveAction = (e) => {
-    const canvas = canvasRef.current;
-    if (!isDrawing || !ctx || !canvas) return;
+    if (!isDrawing) return;
+    const active = getActiveLayerContext();
+    if (!active) return;
 
     if (e.cancelable) e.preventDefault();
 
     const pos = getCoords(e);
+    const { ctx } = active;
 
     if (tool === 'brush' || tool === 'eraser') {
       ctx.lineTo(pos.x, pos.y);
       ctx.stroke();
+      renderComposite();
     } else if (tool === 'rect' && snapshot) {
       ctx.putImageData(snapshot, 0, 0);
       ctx.lineWidth = size;
@@ -424,6 +587,7 @@ export default function FullPhotoShopEditor() {
       } else {
         ctx.strokeRect(startPos.x, startPos.y, w, h);
       }
+      renderComposite();
     } else if (tool === 'circle' && snapshot) {
       ctx.putImageData(snapshot, 0, 0);
       ctx.lineWidth = size;
@@ -437,116 +601,122 @@ export default function FullPhotoShopEditor() {
       } else {
         ctx.stroke();
       }
+      renderComposite();
     }
   };
 
   const endAction = () => {
-    const canvas = canvasRef.current;
-    if (!isDrawing || !ctx || !canvas) return;
-
+    if (!isDrawing) return;
+    const active = getActiveLayerContext();
+    if (active) {
+      active.ctx.globalCompositeOperation = 'source-over';
+    }
     setIsDrawing(false);
     setSnapshot(null);
-    ctx.globalCompositeOperation = 'source-over';
-    saveToHistory(ctx, canvas);
+    renderComposite();
+    saveSnapshotToHistory();
   };
 
   const handleRotate = () => {
-    const canvas = canvasRef.current;
-    if (!canvas || !ctx) return;
+    const newW = canvasHeight;
+    const newH = canvasWidth;
 
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = canvas.height;
-    tempCanvas.height = canvas.width;
-    const tempCtx = tempCanvas.getContext('2d');
-    if (!tempCtx) return;
+    layers.forEach((l) => {
+      const oldC = layerCanvasesRef.current[l.id];
+      if (!oldC) return;
 
-    tempCtx.translate(tempCanvas.width / 2, tempCanvas.height / 2);
-    tempCtx.rotate(Math.PI / 2);
-    tempCtx.drawImage(canvas, -canvas.width / 2, -canvas.height / 2);
+      const rotatedC = createLayerCanvas(newW, newH, false);
+      const rCtx = rotatedC.getContext('2d');
+      if (!rCtx) return;
 
-    canvas.width = tempCanvas.width;
-    canvas.height = tempCanvas.height;
-    setCanvasWidth(canvas.width);
-    setCanvasHeight(canvas.height);
+      rCtx.translate(newW / 2, newH / 2);
+      rCtx.rotate(Math.PI / 2);
+      rCtx.drawImage(oldC, -oldC.width / 2, -oldC.height / 2);
+      layerCanvasesRef.current[l.id] = rotatedC;
+    });
 
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(tempCanvas, 0, 0);
-    saveToHistory(ctx, canvas);
+    setCanvasWidth(newW);
+    setCanvasHeight(newH);
+    renderComposite(layers, newW, newH);
+    saveSnapshotToHistory(layers, activeLayerId, newW, newH);
   };
 
   const handleFlip = () => {
-    const canvas = canvasRef.current;
-    if (!canvas || !ctx) return;
+    layers.forEach((l) => {
+      const oldC = layerCanvasesRef.current[l.id];
+      if (!oldC) return;
 
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = canvas.width;
-    tempCanvas.height = canvas.height;
-    const tempCtx = tempCanvas.getContext('2d');
-    if (!tempCtx) return;
+      const flippedC = createLayerCanvas(canvasWidth, canvasHeight, false);
+      const fCtx = flippedC.getContext('2d');
+      if (!fCtx) return;
 
-    tempCtx.translate(canvas.width, 0);
-    tempCtx.scale(-1, 1);
-    tempCtx.drawImage(canvas, 0, 0);
+      fCtx.translate(canvasWidth, 0);
+      fCtx.scale(-1, 1);
+      fCtx.drawImage(oldC, 0, 0);
+      layerCanvasesRef.current[l.id] = flippedC;
+    });
 
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(tempCanvas, 0, 0);
-    saveToHistory(ctx, canvas);
+    renderComposite();
+    saveSnapshotToHistory();
   };
 
   const applyFiltersToCanvas = () => {
-    const canvas = canvasRef.current;
-    if (!canvas || !ctx) return;
+    const active = getActiveLayerContext();
+    if (!active) return;
 
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = canvas.width;
-    tempCanvas.height = canvas.height;
+    const tempCanvas = createLayerCanvas(canvasWidth, canvasHeight, false);
     const tempCtx = tempCanvas.getContext('2d');
     if (!tempCtx) return;
 
     tempCtx.filter = `brightness(${brightness}%) contrast(${contrast}%) grayscale(${grayscale}%) sepia(${sepia}%)`;
-    tempCtx.drawImage(canvas, 0, 0);
+    tempCtx.drawImage(active.canvas, 0, 0);
 
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(tempCanvas, 0, 0);
+    active.ctx.globalCompositeOperation = 'source-over';
+    active.ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+    active.ctx.drawImage(tempCanvas, 0, 0);
 
     setBrightness(100);
     setContrast(100);
     setGrayscale(0);
     setSepia(0);
-    saveToHistory(ctx, canvas);
+    renderComposite();
+    saveSnapshotToHistory();
   };
 
   const handleSave = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = canvas.width;
-    tempCanvas.height = canvas.height;
+    const tempCanvas = createLayerCanvas(canvasWidth, canvasHeight, false);
     const tempCtx = tempCanvas.getContext('2d');
     if (!tempCtx) return;
 
     tempCtx.filter = `brightness(${brightness}%) contrast(${contrast}%) grayscale(${grayscale}%) sepia(${sepia}%)`;
-    tempCtx.drawImage(canvas, 0, 0);
+    layers.forEach((l) => {
+      if (!l.visible) return;
+      const lCanvas = layerCanvasesRef.current[l.id];
+      if (lCanvas) tempCtx.drawImage(lCanvas, 0, 0);
+    });
 
     const link = document.createElement('a');
-    link.download = 'sprite-art.png';
+    link.download = 'character-sprite.png';
     link.href = tempCanvas.toDataURL('image/png');
     link.click();
   };
 
   const getCanvasClassName = () => {
-    if (tool === 'text') return `${styles.canvas} ${styles.cursorText}`;
-    if (tool === 'eyedropper') return `${styles.canvas} ${styles.cursorPipette}`;
-    if (tool === 'fill') return `${styles.canvas} ${styles.cursorFill}`;
-    return styles.canvas;
+    const classes = [styles.canvas];
+    if (zoom > 100) classes.push(styles.pixelated);
+    if (tool === 'text') classes.push(styles.cursorText);
+    if (tool === 'eyedropper') classes.push(styles.cursorPipette);
+    if (tool === 'fill') classes.push(styles.cursorFill);
+    return classes.join(' ');
   };
+
+  const scaledWidth = Math.round((canvasWidth * zoom) / 100);
+  const scaledHeight = Math.round((canvasHeight * zoom) / 100);
+  const scaledGridSize = (gridSize * zoom) / 100;
 
   return (
     <div className={styles.container}>
+      {/* Левая панель */}
       <div className={styles.sidebarLeft}>
         <Link href="/" className={styles.linkHome}>← На главную</Link>
         <h3 className={styles.title}>Инструменты</h3>
@@ -652,7 +822,7 @@ export default function FullPhotoShopEditor() {
             checked={whiteBg}
             onChange={(e) => handleToggleWhiteBg(e.target.checked)}
           />
-          <span>Белый фон</span>
+          <span>Белый фон (слой 1)</span>
         </label>
 
         <label className={styles.checkboxRow}>
@@ -672,6 +842,7 @@ export default function FullPhotoShopEditor() {
               onChange={(e) => setGridSize(Number(e.target.value))}
               className={styles.selectField}
             >
+              <option value={8}>8 × 8 px</option>
               <option value={16}>16 × 16 px</option>
               <option value={32}>32 × 32 px</option>
               <option value={64}>64 × 64 px</option>
@@ -706,6 +877,7 @@ export default function FullPhotoShopEditor() {
         <button type="button" onClick={handleFlip} className={styles.btnAction}>↔️ Отразить</button>
       </div>
 
+      {/* Центр */}
       <div className={styles.mainContent}>
         <div className={styles.topBar}>
           <label className={styles.fileLabel}>
@@ -729,7 +901,20 @@ export default function FullPhotoShopEditor() {
           >
             ↪️ Вперёд
           </button>
-          <button type="button" onClick={handleClearCanvas} className={styles.btnClear}>🗑️ Очистить</button>
+
+          <div className={styles.zoomControls}>
+            <button type="button" onClick={handleZoomOut} className={styles.btnTop} title="Уменьшить">−</button>
+            <span
+              className={styles.zoomLabel}
+              onClick={() => setZoom(100)}
+              title="Сбросить масштаб до 100%"
+            >
+              {zoom}%
+            </span>
+            <button type="button" onClick={handleZoomIn} className={styles.btnTop} title="Увеличить">+</button>
+          </div>
+
+          <button type="button" onClick={handleClearLayer} className={styles.btnClear}>🗑️ Очистить слой</button>
 
           <button type="button" onClick={handleSave} className={styles.btnSave}>
             💾 Сохранить PNG
@@ -737,9 +922,12 @@ export default function FullPhotoShopEditor() {
         </div>
 
         <div className={styles.canvasArea}>
-          <div className={styles.canvasWrapper}>
+          <div
+            className={styles.canvasWrapper}
+            style={{ width: `${scaledWidth}px`, height: `${scaledHeight}px` }}
+          >
             <canvas
-              ref={canvasRef}
+              ref={displayCanvasRef}
               onMouseDown={startAction}
               onMouseMove={moveAction}
               onMouseUp={endAction}
@@ -747,19 +935,93 @@ export default function FullPhotoShopEditor() {
               onTouchStart={startAction}
               onTouchMove={moveAction}
               onTouchEnd={endAction}
+              style={{ width: `${scaledWidth}px`, height: `${scaledHeight}px` }}
               className={getCanvasClassName()}
             />
             {showGrid && (
               <div
                 className={styles.gridOverlay}
-                style={{ backgroundSize: `${gridSize}px ${gridSize}px` }}
+                style={{ backgroundSize: `${scaledGridSize}px ${scaledGridSize}px` }}
               />
             )}
           </div>
         </div>
       </div>
 
+      {/* Правая панель */}
       <div className={styles.sidebarRight}>
+        {/* Слои */}
+        <div className={styles.layersSection}>
+          <div className={styles.layersHeader}>
+            <h3 className={styles.subTitle}>Слои</h3>
+            <button type="button" onClick={handleAddLayer} className={styles.btnAddLayer}>
+              + Новый
+            </button>
+          </div>
+
+          <div className={styles.layersList}>
+            {[...layers].reverse().map((layer, revIdx) => {
+              const realIdx = layers.length - 1 - revIdx;
+              const isActive = layer.id === activeLayerId;
+
+              return (
+                <div
+                  key={layer.id}
+                  onClick={() => setActiveLayerId(layer.id)}
+                  className={`${styles.layerItem} ${isActive ? styles.layerItemActive : ''}`}
+                >
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleLayerVisibility(layer.id);
+                    }}
+                    className={styles.layerIconBtn}
+                    title={layer.visible ? 'Скрыть слой' : 'Показать слой'}
+                  >
+                    {layer.visible ? '👁️' : '🚫'}
+                  </button>
+
+                  <span className={styles.layerName}>{layer.name}</span>
+
+                  <div className={styles.layerActions} onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      disabled={realIdx === layers.length - 1}
+                      onClick={() => handleMoveLayer(realIdx, 1)}
+                      className={styles.layerSmallBtn}
+                      title="Выше"
+                    >
+                      ▲
+                    </button>
+                    <button
+                      type="button"
+                      disabled={realIdx === 0}
+                      onClick={() => handleMoveLayer(realIdx, -1)}
+                      className={styles.layerSmallBtn}
+                      title="Ниже"
+                    >
+                      ▼
+                    </button>
+                    <button
+                      type="button"
+                      disabled={layers.length <= 1}
+                      onClick={() => handleDeleteLayer(layer.id)}
+                      className={styles.layerDeleteBtn}
+                      title="Удалить слой"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <hr className={styles.divider} />
+
+        {/* Цветокоррекция */}
         <h3 className={styles.subTitle}>Цветокоррекция</h3>
 
         <label className={styles.labelControl}>
@@ -811,7 +1073,7 @@ export default function FullPhotoShopEditor() {
         </label>
 
         <button type="button" onClick={applyFiltersToCanvas} className={styles.btnFilter}>
-          ✓ Применить фильтры
+          ✓ Применить к слою
         </button>
       </div>
     </div>

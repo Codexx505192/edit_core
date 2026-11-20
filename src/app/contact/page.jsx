@@ -51,14 +51,11 @@ export default function Page(){
                         <img src="./icons/icn_1.png" alt="" />
                       </div>
 
-                      <a
-                     href="https://t.me/R_oot_4"
-                     target="_blank"
-                     rel="noopener noreferrer"
-                     className={styles.tg}
-                      >
-                        Telegram
-                      </a>
+                     <a href="https://t.me/R_oot_404" 
+                     target="_blank" 
+                     rel="noopener 
+                     noreferrer" 
+                     className={styles.tg}>Telegram</a>
                      </li>
                      
                      <li className={styles.li_itm}>

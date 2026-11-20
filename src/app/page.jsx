@@ -30,13 +30,6 @@ export default function Home() {
       </div>
     </section>
 
-    <section>
-      <div className="container">
-        <div className="safety_block">
-          
-        </div>
-      </div>
-    </section>
    </main>
   );
 }

@@ -25,13 +25,13 @@
 }
 
 .sidebarRight {
-  width: 240px;
+  width: 250px;
   background: #252526;
   padding: 15px;
   border-left: 1px solid #333;
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 12px;
   overflow-y: auto;
   flex-shrink: 0;
   scrollbar-width: thin;
@@ -89,7 +89,7 @@
 
 .zoomLabel {
   font-size: 13px;
-  min-width: 46px;
+  min-width: 48px;
   text-align: center;
   cursor: pointer;
   user-select: none;
@@ -110,8 +110,6 @@
   display: inline-flex;
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.7);
   flex-shrink: 0;
-  max-width: 100%;
-  max-height: 100%;
 }
 
 /* Шахматная сетка для отображения прозрачности */
@@ -127,12 +125,13 @@
   cursor: crosshair;
   touch-action: none;
   display: block;
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
 }
 
-/* Наложение сетки для геймдева (не попадает в экспорт) */
+.pixelated {
+  image-rendering: pixelated;
+}
+
+/* Наложение сетки для геймдева */
 .gridOverlay {
   position: absolute;
   inset: 0;
@@ -214,7 +213,7 @@
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  margin-top: 10px;
+  margin-top: 6px;
 }
 
 .btnFilter:hover {
@@ -376,6 +375,101 @@
 
 .btnResize:hover {
   background: #0088e6;
+}
+
+/* Панель слоёв */
+.layersSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.layersHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.btnAddLayer {
+  padding: 4px 8px;
+  background: #007acc;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.btnAddLayer:hover {
+  background: #0088e6;
+}
+
+.layersList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.layerItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px;
+  background: #323233;
+  border: 1px solid #444;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.layerItemActive {
+  background: #1f4e78;
+  border-color: #007acc;
+}
+
+.layerIconBtn {
+  background: none;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 12px;
+}
+
+.layerName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layerActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.layerSmallBtn,
+.layerDeleteBtn {
+  background: #444;
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  padding: 2px 4px;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.layerSmallBtn:disabled,
+.layerDeleteBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.layerDeleteBtn:hover:not(:disabled) {
+  background: #a93226;
 }
 
 @media (max-width: 1200px) {

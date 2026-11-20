@@ -114,7 +114,6 @@
 @media (max-width: 1200px) {
   .container{
     width: 900px;
-    background-color: aqua;
   }
 
   .txt_1 {
@@ -195,8 +194,8 @@
 
 
   .b_itm {
-    width: 450px;
-    height: 450px;
+    width: 299px;
+    height: 299px;
 }
 
 
@@ -216,8 +215,8 @@
   }
 
   .b_itm {
-    width: 369px;
-    height: 390px;
+    width: 250px;
+    height: 250px;
 }
 }
 
@@ -225,12 +224,6 @@
   .container{
     width: 100%;
   }
-
-
-  .b_itm {
-    width: 299px;
-    height: 309px;
-}
 
 .logo_header {
     font-size: 35px;
@@ -244,5 +237,10 @@
 
 .txt_2 {
     font-size: 12px;
+}
+
+.b_itm {
+    width: 220px;
+    height: 220px;
 }
 }
