@@ -51,7 +51,7 @@ export default function Page(){
                         <img src="./icons/icn_1.png" alt="" />
                       </div>
 
-                     <a href="#" 
+                     <a href="https://t.me/R_oot_404" 
                      target="_blank" 
                      rel="noopener 
                      noreferrer" 
