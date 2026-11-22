@@ -4,7 +4,7 @@ import styles from './gallery.module.css'
 export default function Page(){
     return(
         <>
-        <section>
+        <section className={styles.gallery_back}>
                <Header/>
             <div className={styles.container}>
                 <div className={styles.gallery_block}>
