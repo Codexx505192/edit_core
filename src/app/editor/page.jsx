@@ -39,6 +39,7 @@ export default function FullPhotoShopEditor() {
   const [tool, setTool] = useState('brush');
   const [color, setColor] = useState('#ff0000');
   const [size, setSize] = useState(5);
+  const [eraserSize, setEraserSize] = useState(15);
   const [fillShape, setFillShape] = useState(false);
   const [whiteBg, setWhiteBg] = useState(true);
   const [showGrid, setShowGrid] = useState(false);
@@ -538,9 +539,11 @@ export default function FullPhotoShopEditor() {
     setIsDrawing(true);
     setSnapshot(active.ctx.getImageData(0, 0, active.canvas.width, active.canvas.height));
 
+    const activeSize = tool === 'eraser' ? eraserSize : size;
+
     active.ctx.beginPath();
     active.ctx.moveTo(pos.x, pos.y);
-    active.ctx.lineWidth = size;
+    active.ctx.lineWidth = activeSize;
     active.ctx.lineCap = 'round';
     active.ctx.lineJoin = 'round';
 
@@ -860,13 +863,22 @@ export default function FullPhotoShopEditor() {
         </label>
 
         <label className={styles.labelControl}>
-          <span>Размер: {size}px</span>
+          <span>
+            {tool === 'eraser' ? `Размер ластика: ${eraserSize}px` : `Размер: ${size}px`}
+          </span>
           <input
             type="range"
             min="1"
-            max="50"
-            value={size}
-            onChange={(e) => setSize(Number(e.target.value))}
+            max={tool === 'eraser' ? '100' : '50'}
+            value={tool === 'eraser' ? eraserSize : size}
+            onChange={(e) => {
+              const val = Number(e.target.value);
+              if (tool === 'eraser') {
+                setEraserSize(val);
+              } else {
+                setSize(val);
+              }
+            }}
             className={styles.rangeInput}
           />
         </label>
@@ -906,8 +918,8 @@ export default function FullPhotoShopEditor() {
             <button type="button" onClick={handleZoomOut} className={styles.btnTop} title="Уменьшить">−</button>
             <span
               className={styles.zoomLabel}
-              onClick={() => setZoom(100)}
-              title="Сбросить масштаб до 100%"
+              onClick={() => setZoom(75)}
+              title="Сбросить масштаб до 75%"
             >
               {zoom}%
             </span>
