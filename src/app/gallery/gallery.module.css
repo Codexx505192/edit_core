@@ -1,9 +1,15 @@
 .container{
     width: 1200px;
     margin: 0 auto;
-    background-color: aqua;
 }
 
+body{
+    background-color: #ded1d1;
+}
+
+.banner_back{
+    background-color: #ded1d1;
+}
 
 .gallery_block{
     background-color: #ded1d1;

@@ -7,7 +7,10 @@
 .container{
   width: 1200px;
   margin: 0 auto;
-  background-color: rgb(173, 173, 173);
+}
+
+body{
+  background-color: #ded1d1;
 }
 
 .header{
@@ -144,6 +147,7 @@
   background-color: rgb(222, 209, 209);
   padding: 90px 0;
 }
+
 .banner_back{
   background-color: rgb(222, 209, 209);
 }
