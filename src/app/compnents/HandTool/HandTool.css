@@ -1,0 +1,45 @@
+.hand_wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.hand_toolbar {
+  display: flex;
+  gap: 8px;
+}
+
+.hand_btn {
+  padding: 8px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #0f172a;
+  cursor: pointer;
+}
+
+.hand_btn.active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+.hand_viewport {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 500px;
+  overflow: hidden;
+  user-select: none;
+  background: #e5e7eb;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+}
+
+.hand_stage {
+  display: inline-flex;
+  will-change: transform;
+}

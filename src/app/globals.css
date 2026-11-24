@@ -13,6 +13,60 @@ body{
   background-color: #ded1d1;
 }
 
+/* handleTool */
+.editor_workspace {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100vh;
+  background-color: #141414;
+}
+
+.workspace_bar {
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px;
+  background-color: #1e1e1e;
+  border-bottom: 1px solid #2b2b2b;
+}
+
+.hand_btn {
+  padding: 6px 14px;
+  border: 1px solid #3f3f46;
+  border-radius: 6px;
+  background-color: #27272a;
+  color: #f4f4f5;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.hand_btn.active {
+  background-color: #2563eb;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+.workspace_area {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  user-select: none;
+  background-color: #141414;
+}
+
+.paper_sheet {
+  width: 760px;
+  height: 480px;
+  background-color: #ffffff;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65);
+  will-change: transform;
+}
+/* handleTool */
+
+
 .header{
   display: flex;
   align-items: center;

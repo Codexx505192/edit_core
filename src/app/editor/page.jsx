@@ -37,6 +37,13 @@ export default function FullPhotoShopEditor() {
   const [activeLayerId, setActiveLayerId] = useState(null);
 
   const [tool, setTool] = useState('brush');
+  const [handMode, setHandMode] = useState(false);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+
+  const panDragStartRef = useRef({ x: 0, y: 0 });
+  const panOriginRef = useRef({ x: 0, y: 0 });
+
   const [color, setColor] = useState('#ff0000');
   const [size, setSize] = useState(5);
   const [eraserSize, setEraserSize] = useState(15);
@@ -499,7 +506,32 @@ export default function FullPhotoShopEditor() {
     saveSnapshotToHistory();
   };
 
+  // Перетаскивание холста («Рука» или средняя кнопка мыши)
+  const handleAreaMouseDown = (e) => {
+    if (!handMode && e.button !== 1) return;
+    e.preventDefault();
+    setIsPanning(true);
+    panDragStartRef.current = { x: e.clientX, y: e.clientY };
+    panOriginRef.current = { x: pan.x, y: pan.y };
+  };
+
+  const handleAreaMouseMove = (e) => {
+    if (!isPanning) return;
+    const dx = e.clientX - panDragStartRef.current.x;
+    const dy = e.clientY - panDragStartRef.current.y;
+    setPan({
+      x: panOriginRef.current.x + dx,
+      y: panOriginRef.current.y + dy,
+    });
+  };
+
+  const handleAreaMouseUp = () => {
+    setIsPanning(false);
+  };
+
   const startAction = (e) => {
+    if (handMode || e.button === 1) return;
+
     const active = getActiveLayerContext();
     const display = displayCanvasRef.current;
     if (!active || !display) return;
@@ -707,9 +739,10 @@ export default function FullPhotoShopEditor() {
   const getCanvasClassName = () => {
     const classes = [styles.canvas];
     if (zoom > 100) classes.push(styles.pixelated);
-    if (tool === 'text') classes.push(styles.cursorText);
-    if (tool === 'eyedropper') classes.push(styles.cursorPipette);
-    if (tool === 'fill') classes.push(styles.cursorFill);
+    if (handMode) classes.push(isPanning ? styles.cursorGrabbing : styles.cursorGrab);
+    else if (tool === 'text') classes.push(styles.cursorText);
+    else if (tool === 'eyedropper') classes.push(styles.cursorPipette);
+    else if (tool === 'fill') classes.push(styles.cursorFill);
     return classes.join(' ');
   };
 
@@ -736,8 +769,11 @@ export default function FullPhotoShopEditor() {
           <button
             key={item.id}
             type="button"
-            onClick={() => setTool(item.id)}
-            className={`${styles.btn} ${tool === item.id ? styles.btnActive : ''}`}
+            onClick={() => {
+              setHandMode(false);
+              setTool(item.id);
+            }}
+            className={`${styles.btn} ${!handMode && tool === item.id ? styles.btnActive : ''}`}
           >
             {item.label}
           </button>
@@ -914,12 +950,25 @@ export default function FullPhotoShopEditor() {
             ↪️ Вперёд
           </button>
 
+          <button
+            type="button"
+            onClick={() => setHandMode((prev) => !prev)}
+            onDoubleClick={() => setPan({ x: 0, y: 0 })}
+            className={`${styles.btnTop} ${handMode ? styles.btnActive : ''}`}
+            title="Рука (перетаскивание холста; двойной клик — сброс позиции)"
+          >
+            ✋ Рука
+          </button>
+
           <div className={styles.zoomControls}>
             <button type="button" onClick={handleZoomOut} className={styles.btnTop} title="Уменьшить">−</button>
             <span
               className={styles.zoomLabel}
-              onClick={() => setZoom(75)}
-              title="Сбросить масштаб до 75%"
+              onClick={() => {
+                setZoom(75);
+                setPan({ x: 0, y: 0 });
+              }}
+              title="Сбросить масштаб до 75% и позицию"
             >
               {zoom}%
             </span>
@@ -933,10 +982,23 @@ export default function FullPhotoShopEditor() {
           </button>
         </div>
 
-        <div className={styles.canvasArea}>
+        <div
+          className={styles.canvasArea}
+          onMouseDown={handleAreaMouseDown}
+          onMouseMove={handleAreaMouseMove}
+          onMouseUp={handleAreaMouseUp}
+          onMouseLeave={handleAreaMouseUp}
+          style={{
+            cursor: handMode ? (isPanning ? 'grabbing' : 'grab') : undefined,
+          }}
+        >
           <div
             className={styles.canvasWrapper}
-            style={{ width: `${scaledWidth}px`, height: `${scaledHeight}px` }}
+            style={{
+              width: `${scaledWidth}px`,
+              height: `${scaledHeight}px`,
+              transform: `translate(${pan.x}px, ${pan.y}px)`,
+            }}
           >
             <canvas
               ref={displayCanvasRef}
@@ -1033,8 +1095,8 @@ export default function FullPhotoShopEditor() {
 
         <hr className={styles.divider} />
 
-        {/* Цветокоррекция */}
-        <h3 className={styles.subTitle}>Цветокоррекция</h3>
+        {/* Фильтры */}
+        <h3 className={styles.title}>Фильтры</h3>
 
         <label className={styles.labelControl}>
           <span>Яркость: {brightness}%</span>
@@ -1061,7 +1123,7 @@ export default function FullPhotoShopEditor() {
         </label>
 
         <label className={styles.labelControl}>
-          <span>Чёрно-белое: {grayscale}%</span>
+          <span>Ч/Б: {grayscale}%</span>
           <input
             type="range"
             min="0"
@@ -1084,8 +1146,21 @@ export default function FullPhotoShopEditor() {
           />
         </label>
 
-        <button type="button" onClick={applyFiltersToCanvas} className={styles.btnFilter}>
-          ✓ Применить к слою
+        <button type="button" onClick={applyFiltersToCanvas} className={styles.btnApply}>
+          Применить фильтры к слою
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setBrightness(100);
+            setContrast(100);
+            setGrayscale(0);
+            setSepia(0);
+          }}
+          className={styles.btnReset}
+        >
+          Сбросить фильтры
         </button>
       </div>
     </div>
